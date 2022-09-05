@@ -1,5 +1,5 @@
-import {WebGLCanvas} from '../base/helpers/WebGLCanvas.js';
-import {WebGLShader} from '../base/helpers/WebGLShader.js';
+import {WebGLCanvas} from '../../../base/helpers/WebGLCanvas.js';
+import {WebGLShader} from '../../../base/helpers/WebGLShader.js';
 
 /**
  * Et WebGL-program som tegner en enkel trekant.
@@ -10,7 +10,7 @@ export function main() {
     const webGLCanvas = new WebGLCanvas('myCanvas', document.body, 960, 640);
     const gl = webGLCanvas.gl;
     let baseShaderInfo = initBaseShaders(gl);
-    let buffers = initCubeBuffers(gl);
+    let buffers = initBuffers(gl);
     draw(gl, baseShaderInfo, buffers);
 }
 
@@ -42,12 +42,12 @@ function initBaseShaders(gl) {
  */
 function initCamera(gl) {
     // Kameraposisjon:
-    const camPosX = 8;
-    const camPosY = 8;
-    const camPosZ = 3;
+    const camPosX = 9;
+    const camPosY = 4;
+    const camPosZ = 1;
 
     // Kamera ser mot ...
-    const lookAtX = -2;
+    const lookAtX = 0;
     const lookAtY = 1;
     const lookAtZ = 1;
 
@@ -62,7 +62,7 @@ function initCamera(gl) {
     // VIEW-matrisa:
     viewMatrix.setLookAt(camPosX, camPosY, camPosZ, lookAtX, lookAtY, lookAtZ, upX, upY, upZ);
     // PROJECTION-matrisa (frustum): cuon-utils: Matrix4.prototype.setPerspective = function(fovy, aspect, near, far)
-    const fieldOfView = 65; // I grader.
+    const fieldOfView = 75; // I grader.
     const aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;
     const near = 0.1;
     const far = 1000.0;
@@ -75,44 +75,33 @@ function initCamera(gl) {
     };
 }
 
+
 /**
  * Oppretter verteksbuffer for trekanten.
  * Et posisjonsbuffer og et fargebuffer.
  * MERK: Må være likt antall posisjoner og farger.
  */
-function initCubeBuffers(gl) {
-    const positions = new Float32Array([
-        -10, 0, 0, // x
-        10, 0, 0, // x
-        0, -10, 0, // y
-        0, 10, 0, // y
-        0, 0, -100, // z
-        0, 0, 10, // z
-        // base triangles
-        -1, 1, 1,
-        -1, -1, 1,
-        1, 1, 1,
-        // triangle line adds
-        1, -1, 1,
-        1, 1, -1,
-        1, -1, -1,
-        -1, 1, -1,
-        -1, -1, -1,
-        -1, 1, 1,
-        -1, -1, 1,
-        //top
-        -1, 1, 1,
-        -1, 1, -1,
-        1, 1, 1,
-        1, 1, -1,
-        // bottom
-        -1, -1, 1,
-        -1, -1, -1,
-        1, -1, 1,
-        1, -1, -1,
-    ]);
+function initBuffers(gl) {
+    let toPI = 2 * Math.PI;
+    let positions = [];
+    let colors = [];
 
-    const colors = new Float32Array(fillCollorArray());
+    let stepGrader = 360 / 12;
+    let step = (Math.PI / 180) * stepGrader;
+    let r = 1, g = 0, b = 0, a = 1; // Fargeverdier.
+
+// Startpunkt (toppen av kjegla):
+    positions.push(0, 2, 0)
+    colors.push(1, 0, 0, 1,)
+    for (let phi = 0.0; phi <= toPI; phi += step) {
+        positions.push(Math.cos(phi), 0, Math.sin(phi))
+        g += 0.1; //Endrer litt på fargen for hver verteks.
+        colors.push(r, g, b, a)
+    }
+
+    positions = new Float32Array(positions)
+    colors = new Float32Array(colors)
+
     const positionBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
@@ -126,19 +115,8 @@ function initCubeBuffers(gl) {
     return {
         position: positionBuffer,
         color: colorBuffer,
-        // vertexCount: positions.length / 3
+        vertexCount: positions.length / 3
     };
-}
-
-function fillCollorArray() {
-    let colorArray = []
-    for (let i = 0; i < 25 * 4; i += 4) {
-        for (let j = 0; j < 4; j++) {
-            colorArray[i + j] = Math.random().toFixed(1)
-        }
-    }
-    console.log(colorArray)
-    return colorArray
 }
 
 /**
@@ -146,19 +124,10 @@ function fillCollorArray() {
  * Kalles fra draw()
  */
 function connectPositionAttribute(gl, baseShaderInfo, positionBuffer) {
-    const numComponents = 3;
     const type = gl.FLOAT;
-    const normalize = false;
-    const stride = 0;
-    const offset = 0;
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
     gl.vertexAttribPointer(
-        baseShaderInfo.attribLocations.vertexPosition,
-        numComponents,
-        type,
-        normalize,
-        stride,
-        offset);
+        baseShaderInfo.attribLocations.vertexPosition, 3, type, false, 0, 0);
     gl.enableVertexAttribArray(baseShaderInfo.attribLocations.vertexPosition);
 }
 
@@ -167,19 +136,10 @@ function connectPositionAttribute(gl, baseShaderInfo, positionBuffer) {
  * Kalles fra draw()
  */
 function connectColorAttribute(gl, baseShaderInfo, colorBuffer) {
-    const numComponents = 4;
     const type = gl.FLOAT;
-    const normalize = false;
-    const stride = 0;
-    const offset = 0;
     gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
     gl.vertexAttribPointer(
-        baseShaderInfo.attribLocations.vertexColor,
-        numComponents,
-        type,
-        normalize,
-        stride,
-        offset);
+        baseShaderInfo.attribLocations.vertexColor, 4, type, false, 0, 0);
     gl.enableVertexAttribArray(baseShaderInfo.attribLocations.vertexColor);
 }
 
@@ -194,7 +154,6 @@ function clearCanvas(gl) {
     gl.depthFunc(gl.LEQUAL);            // Nære objekter dekker fjerne objekter.
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 }
-
 
 /**
  * Tegner!
@@ -220,9 +179,7 @@ function draw(gl, baseShaderInfo, buffers) {
     gl.uniformMatrix4fv(baseShaderInfo.uniformLocations.modelViewMatrix, false, modelviewMatrix.elements);
     gl.uniformMatrix4fv(baseShaderInfo.uniformLocations.projectionMatrix, false, cameraMatrixes.projectionMatrix.elements);
 
+
     // Tegn!
-    gl.drawArrays(gl.LINES, 0, 6);
-    gl.drawArrays(gl.TRIANGLE_STRIP, 6, 10);
-    gl.drawArrays(gl.TRIANGLE_STRIP, 16, 4);
-    gl.drawArrays(gl.TRIANGLE_STRIP, 20, 4);
+    gl.drawArrays(gl.TRIANGLE_FAN, 0, buffers.vertexCount);
 }
