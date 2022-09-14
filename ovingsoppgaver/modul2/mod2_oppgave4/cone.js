@@ -8,10 +8,14 @@ import {WebGLShader} from '../../../base/helpers/WebGLShader.js';
 export function main() {
     // Oppretter et webGLCanvas for WebGL-tegning:
     const webGLCanvas = new WebGLCanvas('myCanvas', document.body, 960, 640);
-    const gl = webGLCanvas.gl;
-    let baseShaderInfo = initBaseShaders(gl);
-    let buffers = initConeBuffers(gl);
-    draw(gl, baseShaderInfo, buffers);
+    const renderInfo = {
+        gl: webGLCanvas.gl,
+        lastTime: 0,
+        baseShaderInfo: initBaseShaders(webGLCanvas.gl),
+        coneBuffer: initConeBuffers(webGLCanvas.gl),
+        conePos: {x: 0, y: 0, z: 0}
+    }
+    animate(0, renderInfo);
 }
 
 function initBaseShaders(gl) {
@@ -42,9 +46,9 @@ function initBaseShaders(gl) {
  */
 function initCamera(gl) {
     // Kameraposisjon:
-    const camPosX = 0;
-    const camPosY = 0;
-    const camPosZ = 10;
+    const camPosX = 9;
+    const camPosY = 4;
+    const camPosZ = 1;
 
     // Kamera ser mot ...
     const lookAtX = 0;
@@ -62,7 +66,7 @@ function initCamera(gl) {
     // VIEW-matrisa:
     viewMatrix.setLookAt(camPosX, camPosY, camPosZ, lookAtX, lookAtY, lookAtZ, upX, upY, upZ);
     // PROJECTION-matrisa (frustum): cuon-utils: Matrix4.prototype.setPerspective = function(fovy, aspect, near, far)
-    const fieldOfView = 75; // I grader.
+    const fieldOfView = 65; // I grader.
     const aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;
     const near = 0.1;
     const far = 1000.0;
@@ -75,28 +79,34 @@ function initCamera(gl) {
     };
 }
 
+/**
+ * Oppretter verteksbuffer for trekanten.
+ * Et posisjonsbuffer og et fargebuffer.
+ * MERK: Må være likt antall posisjoner og farger.
+ */
+
 function initConeBuffers(gl) {
     let toPI = 2 * Math.PI;
-    let positions = [];
-    let colors = [];
-
     let stepGrader = 360 / 12;
     let step = (Math.PI / 180) * stepGrader;
     let r = 1, g = 0, b = 0, a = 1; // Fargeverdier.
 
 // Startpunkt (toppen av kjegla):
-    let x = 0, y = 2, z = 0;
-    positions = positions.concat(x, y, z); //NB! bruk av concat!!
-    colors = colors.concat(r, g, b, a);
+    let positions = [0, 2, 0];
+    let colors = [1, 0, 0, 1];
     for (let phi = 0.0; phi <= toPI; phi += step) {
-        x = Math.cos(phi);
-        y = 0;
-        z = Math.sin(phi);
-
-        positions = positions.concat(x, y, z);
+        positions.push(Math.cos(phi), 0, Math.sin(phi))
         g += 0.1; //Endrer litt på fargen for hver verteks.
-        colors = colors.concat(r, g, b, a);
+        colors.push(r, g, b, a)
     }
+
+    positions.push(Math.cos(0), 0, Math.sin(0))
+    g += 0.1; //Endrer litt på fargen for hver verteks.
+    colors.push(r, g, b, a)
+
+    positions = new Float32Array(positions)
+    colors = new Float32Array(colors)
+
 
     const positionBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
@@ -170,32 +180,58 @@ function clearCanvas(gl) {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 }
 
+/**
+ * Beregner forløpt tid siden siste kall.
+ * @param currentTime
+ * @param globals
+ */
+function getElapsed(currentTime, globals) {
+    let elapsed = 0.0;
+    if (globals.lastTime !== 0.0)	// Først gang er lastTime = 0.0.
+        elapsed = (currentTime - globals.lastTime) / 1000; // Deler på 1000 for å operere med sekunder.
+    globals.lastTime = currentTime;						// Setter lastTime til currentTime.
+    return elapsed;
+}
+
+function animate(currentTime, globals) {
+    window.requestAnimationFrame((currentTime) => {
+        animate(currentTime, globals);
+    });
+    let elapsed = getElapsed(currentTime, globals);
+
+    globals.conePos.x =  elapsed
+
+
+    draw(globals)
+}
 
 /**
  * Tegner!
  */
-function draw(gl, baseShaderInfo, buffers) {
-    clearCanvas(gl);
+function draw(renderInfo) {
+    clearCanvas(renderInfo.gl);
 
     // Aktiver shader:
-    gl.useProgram(baseShaderInfo.program);
+    renderInfo.gl.useProgram(renderInfo.baseShaderInfo.program);
 
     // Kople posisjon og farge-attributtene til tilhørende buffer:
-    connectPositionAttribute(gl, baseShaderInfo, buffers.position);
-    connectColorAttribute(gl, baseShaderInfo, buffers.color);
+    connectPositionAttribute(renderInfo.gl, renderInfo.baseShaderInfo, renderInfo.coneBuffer.position);
+    connectColorAttribute(renderInfo.gl, renderInfo.baseShaderInfo, renderInfo.coneBuffer.position);
 
     // Lag viewmodel-matrisa:
     let modelMatrix = new Matrix4();
     modelMatrix.setIdentity();
+    modelMatrix.scale(3, 3, 3)
+    modelMatrix.rotate(10, renderInfo.conePos.x, 0, 0)
 
-    let cameraMatrixes = initCamera(gl);
+    let cameraMatrixes = initCamera(renderInfo.gl);
     let modelviewMatrix = new Matrix4(cameraMatrixes.viewMatrix.multiply(modelMatrix)); // NB! rekkefølge!
 
     // Send matrisene til shaderen:
-    gl.uniformMatrix4fv(baseShaderInfo.uniformLocations.modelViewMatrix, false, modelviewMatrix.elements);
-    gl.uniformMatrix4fv(baseShaderInfo.uniformLocations.projectionMatrix, false, cameraMatrixes.projectionMatrix.elements);
+    renderInfo.gl.uniformMatrix4fv(renderInfo.baseShaderInfo.uniformLocations.modelViewMatrix, false, modelviewMatrix.elements);
+    renderInfo.gl.uniformMatrix4fv(renderInfo.baseShaderInfo.uniformLocations.projectionMatrix, false, cameraMatrixes.projectionMatrix.elements);
 
     // Tegn!
-    gl.drawArrays(gl.POINTS, 0, 10);
+    renderInfo.gl.drawArrays(renderInfo.gl.TRIANGLE_FAN, 0, renderInfo.coneBuffer.vertexCount);
 }
 

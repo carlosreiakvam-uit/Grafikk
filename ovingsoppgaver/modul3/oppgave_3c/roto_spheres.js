@@ -199,7 +199,7 @@ function animate(currentTime, renderInfo, camera) {
     renderInfo.planetsAnimation.moonOrbitAngle %= 360;
 
     camera.handleKeys(elapsed);
-    draw(currentTime, renderInfo, camera);
+    draw(renderInfo, camera);
 }
 
 /**
@@ -238,7 +238,7 @@ function calculateFps(currentTime, fpsInfo) {
 /**
  * Tegner!
  */
-function draw(currentTime, renderInfo, camera) {
+function draw(renderInfo, camera) {
     clearCanvas(renderInfo.gl);
     // Tegn koordinatsystemet:
     drawCoord(renderInfo, camera);
